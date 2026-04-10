@@ -768,14 +768,11 @@ class MultiTimeframeATRIndicator extends BaseIndicator {
         const current = c.current;
         const currentChartTF = this.manager?.chartManager?.currentInterval || '1h';
         
-        const formatATR = (v) => {
-            if (!v || v === 0) return '—';
-            if (v < 0.0001) return v.toExponential(4);
-            if (v < 0.01) return v.toFixed(6);
-            if (v < 1) return v.toFixed(4);
-            if (v < 1000) return v.toFixed(2);
-            return v.toFixed(0);
-        };
+      const formatATR = (v) => {
+    if (!v || v === 0) return '—';
+    // 8 знаков после запятой хватит почти для всех монет
+    return parseFloat(v.toFixed(8)).toString();
+};
         
         const formatPercent = (v) => v > 0 ? v.toFixed(1) + '%' : '—%';
         const progressColor = (p) => p > 80 ? '#FF4444' : p > 50 ? '#FFA500' : '#FFFFFF';
@@ -822,14 +819,15 @@ class MultiTimeframeATRIndicator extends BaseIndicator {
         `;
         
         const addRow = (label, color, atrValue, natr, progress, remaining) => {
-            const atrFormatted = formatATR(atrValue);
-            const copyBtnHtml = atrFormatted !== '—' ? `
-                <td style="text-align:center; padding:2px 4px;">
-                    <button class="copy-button" data-value="${atrFormatted}" style="background:transparent; border:none; color:#808080; cursor:pointer; padding:2px; border-radius:3px;">
-                        <span class="copy-icon"></span>
-                    </button>
-                 </td>
-            ` : `<td style="text-align:center; padding:2px 4px;">—</td>`;
+           const atrFormatted = formatATR(atrValue);
+const copyValue = atrValue.toString(); // точное число для копирования
+const copyBtnHtml = atrFormatted !== '—' ? `
+    <td style="text-align:center; padding:2px 4px;">
+        <button class="copy-button" data-value="${copyValue}" style="...">
+            <span class="copy-icon"></span>
+        </button>
+    </td>
+` : `<td style="text-align:center; padding:2px 4px;">—</td>`;
             
             return `
                 <tr>
@@ -969,6 +967,123 @@ class MultiTimeframeATRIndicator extends BaseIndicator {
             }
         }
     }
+}
+
+class RSI14Indicator extends BaseIndicator {
+    constructor(manager) {
+        super(manager, 'rsi14', 'RSI 14', '#FFA500', 'rsi');
+        this.settings.period = 14;
+        this.settings.levels = [30, 70];
+    }
+    
+    getWorkerType() {
+        return 'rsi';
+    }
+    
+    getWorkerParams() {
+        return { period: this.settings.period };
+    }
+    
+    getSettingsHTML() {
+        return `
+            ${super.getSettingsHTML()}
+            <div class="settings-row">
+                <label>Период RSI:</label>
+                <input type="number" id="indicatorPeriod" value="${this.settings.period}" min="5" max="50" style="width: 70px;">
+            </div>
+        `;
+    }
+    
+    applySettingsFromForm() {
+        const periodInput = document.getElementById('indicatorPeriod');
+        if (periodInput) this.settings.period = parseInt(periodInput.value);
+        super.applySettingsFromForm();
+    }
+    
+    _createEmptySeries() {
+        const panelManager = this.manager.panelManager;
+        const panelId = this.data.panel;
+        
+        // Удаляем старые серии
+        this.series.forEach(s => {
+            if (s) panelManager.removeSeries(panelId, null, s);
+        });
+        this.series = [];
+        
+        // Создаём основную линию RSI
+        const lineSeries = panelManager.addSeries(panelId, `${this.type}-line`, 'line', {
+            color: this.settings.color,
+            lineWidth: this.settings.lineWidth
+        });
+        
+        // Создаём уровни 30 и 70
+        const level30Series = panelManager.addSeries(panelId, `${this.type}-level30`, 'line', {
+            color: '#808080',
+            lineWidth: 1,
+            lineStyle: LightweightCharts.LineStyle.Dashed
+        });
+        
+        const level70Series = panelManager.addSeries(panelId, `${this.type}-level70`, 'line', {
+            color: '#808080',
+            lineWidth: 1,
+            lineStyle: LightweightCharts.LineStyle.Dashed
+        });
+        
+        this.series = [lineSeries, level30Series, level70Series];
+    }
+    
+   updateSeriesData(data) {
+    if (!data || !data.length) return;
+    
+    const panelManager = this.manager.panelManager;
+    const panelId = this.data.panel;
+    
+    // Получаем все свечи с основного графика
+    const chartData = this.manager.chartManager.chartData;
+    if (!chartData || chartData.length === 0) return;
+    
+    // Создаём массив с null для первых свечей, где RSI не рассчитан
+    const rsiData = [];
+    const rsiMap = new Map();
+    
+    // Индексируем полученные данные RSI по времени
+    data.forEach(item => {
+        rsiMap.set(item.time, item.value);
+    });
+    
+    // Проходим по всем свечам и добавляем значение RSI, если есть
+    chartData.forEach(candle => {
+        if (rsiMap.has(candle.time)) {
+            rsiData.push({
+                time: candle.time,
+                value: rsiMap.get(candle.time)
+            });
+        } else {
+            // Для свечей, где RSI ещё не рассчитан, не добавляем точку
+            // (линия будет начинаться с первой точки данных)
+            // Можно добавить null, но это может разорвать линию
+        }
+    });
+    
+    // Обновляем основную линию RSI
+    if (this.series[0]) {
+        this.series[0].setData(rsiData);
+    }
+    
+    // Обновляем уровни 30 и 70 (они должны быть на всём диапазоне)
+    const level30Data = chartData.map(candle => ({ time: candle.time, value: 30 }));
+    const level70Data = chartData.map(candle => ({ time: candle.time, value: 70 }));
+    
+    if (this.series[1]) {
+        this.series[1].setData(level30Data);
+    }
+    if (this.series[2]) {
+        this.series[2].setData(level70Data);
+    }
+ setTimeout(() => {
+        if (this.manager) this.manager.syncAllIndicatorPanels();
+    }, 50);
+}
 }
 
 class RSI14Indicator extends BaseIndicator {
