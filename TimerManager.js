@@ -34,8 +34,11 @@ class TimerRenderer {
             const rectHeight = (fontSize + 8) * scope.verticalPixelRatio;
             const rectX = scope.mediaSize.width - rectWidth - 5 * scope.horizontalPixelRatio;
             
-            // ПОЛУЧАЕМ ЦЕНУ
-            let price = chartManager.getCurrentPrice();
+            // ========== ИСПРАВЛЕНИЕ: ИСПОЛЬЗУЕМ ТУ ЖЕ ЦЕНУ, ЧТО И ЛИНИЯ ЦЕНЫ ==========
+            // chartManager.currentRealPrice — это та же цена, что обновляется через WebSocket
+            let price = chartManager.currentRealPrice;
+            
+            // Fallback: если цена не получена, используем цену закрытия последней свечи
             if (!price || isNaN(price) || price <= 0) {
                 price = lastCandle.close;
             }
