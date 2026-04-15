@@ -1583,34 +1583,60 @@ applyPriceFormat(precision) {
 }
 // В классе ChartManager (добавить в конец класса)
 
-timeToCoordinateWithFallback(time) {
-    let coord = this.timeToCoordinate(time);
-    if (coord !== null) return coord;
-    
-    const data = this.chartData;
-    if (!data || !data.length) return null;
-    
-    const firstCandle = data[0];
-    const lastCandle = data[data.length - 1];
-    const firstX = this.timeToCoordinate(firstCandle.time);
-    const lastX = this.timeToCoordinate(lastCandle.time);
-    
-    if (firstX === null || lastX === null) return null;
-    
-    const pixelsPerMs = (lastX - firstX) / (lastCandle.time - firstCandle.time);
-    if (time < firstCandle.time) {
-        return firstX - (firstCandle.time - time) * pixelsPerMs;
-    } else {
-        return lastX + (time - lastCandle.time) * pixelsPerMs;
+// ⚠️ ВНУТРИ класса ChartManager, перед самой последней закрывающей скобкой
+
+    timeToCoordinateWithFallback(time) {
+        let coord = this.timeToCoordinate(time);
+        if (coord !== null) return coord;
+        
+        const data = this.chartData;
+        if (!data || !data.length) return null;
+        
+        const firstCandle = data[0];
+        const lastCandle = data[data.length - 1];
+        const firstX = this.timeToCoordinate(firstCandle.time);
+        const lastX = this.timeToCoordinate(lastCandle.time);
+        
+        if (firstX === null || lastX === null) return null;
+        
+        const pixelsPerMs = (lastX - firstX) / (lastCandle.time - firstCandle.time);
+        if (time < firstCandle.time) {
+            return firstX - (firstCandle.time - time) * pixelsPerMs;
+        } else {
+            return lastX + (time - lastCandle.time) * pixelsPerMs;
+        }
+    }
+
+    priceToCoordinateWithFallback(price) {
+        let coord = this.priceToCoordinate(price);
+        if (coord !== null) return coord;
+
+        const series = this.currentChartType === 'candle' ? this.candleSeries : this.barSeries;
+        if (!series) return null;
+        
+        // Исправлено: получаем шкалу цены корректно
+        const priceScale = series.priceScale();
+        if (!priceScale) return null;
+        
+        const height = priceScale.height();
+        const firstValue = priceScale.coordinateToPrice(0);
+        const lastValue = priceScale.coordinateToPrice(height);
+        
+        if (firstValue === null || lastValue === null) return null;
+        
+        const minPrice = Math.min(firstValue, lastValue);
+        const maxPrice = Math.max(firstValue, lastValue);
+        const pixelsPerUnit = height / (maxPrice - minPrice);
+        
+        if (price < minPrice) {
+            return 0 - (minPrice - price) * pixelsPerUnit;
+        } else {
+            return height + (price - maxPrice) * pixelsPerUnit;
+        }
     }
 }
 
-priceToCoordinateWithFallback(price) {
-    let coord = this.priceToCoordinate(price);
-    if (coord !== null) return coord;
-
-    const series = this.currentChartType === 'candle' ? this.candleSeries : this.barSeries;
-    const priceScale = series.priceScale
+// ⚠️ ЗАКРЫВАЕМ КЛАСС И ЭКСПОРТИРУЕМ (вне класса)
 if (typeof window !== 'undefined') {
     window.ChartManager = ChartManager;
-} 
+}
