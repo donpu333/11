@@ -1580,10 +1580,7 @@ applyPriceFormat(precision) {
     
     console.log(`✅ Применён формат цены: ${precision} знаков`);
 }
-}
-// В классе ChartManager (добавить в конец класса)
 
-// ⚠️ ВНУТРИ класса ChartManager, перед самой последней закрывающей скобкой
 
     timeToCoordinateWithFallback(time) {
         let coord = this.timeToCoordinate(time);
