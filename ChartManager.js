@@ -1580,8 +1580,9 @@ applyPriceFormat(precision) {
     
     console.log(`✅ Применён формат цены: ${precision} знаков`);
 }
+}
 
-
+     // ========== FALLBACK МЕТОДЫ (ВНУТРИ КЛАССА) ==========
     timeToCoordinateWithFallback(time) {
         let coord = this.timeToCoordinate(time);
         if (coord !== null) return coord;
@@ -1611,7 +1612,6 @@ applyPriceFormat(precision) {
         const series = this.currentChartType === 'candle' ? this.candleSeries : this.barSeries;
         if (!series) return null;
         
-        // Исправлено: получаем шкалу цены корректно
         const priceScale = series.priceScale();
         if (!priceScale) return null;
         
@@ -1633,7 +1633,7 @@ applyPriceFormat(precision) {
     }
 }
 
-// ⚠️ ЗАКРЫВАЕМ КЛАСС И ЭКСПОРТИРУЕМ (вне класса)
+// Экспорт в глобальную область (ПОСЛЕ ЗАКРЫТИЯ КЛАССА)
 if (typeof window !== 'undefined') {
     window.ChartManager = ChartManager;
 }
