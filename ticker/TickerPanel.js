@@ -159,28 +159,18 @@ class TickerPanel {
         document.addEventListener('visibilitychange', this.handleVisibilityChange);
     }
     
-   async init() {
-    console.log('📋 TickerPanel: быстрая инициализация');
-
-    // ЛЁГКИЕ ОПЕРАЦИИ – выполняются мгновенно
-    this.setupFilters();            // создание кнопок фильтров
-    this.setupFlagContextMenu();    // контекстное меню
-    this.setupUIEventListeners();   // клики, удаление
-    this.setupClearAllButton();     // кнопка очистки
-    this.setupHeaderSorting();      // сортировка по клику на заголовки
-    this.setupModal();              // модальное окно (пустое)
-
-    // ТЯЖЁЛЫЕ ОПЕРАЦИИ – откладываем, чтобы график успел отрисоваться
-    setTimeout(async () => {
-        await this.loadUserData();          // IndexedDB
-        this.initializeDataParallel();      // загрузка списков, снапшотов
-        this.startFallbackPriceUpdates();   // фоновое обновление цен
-        this.startCacheCleanup();           // очистка кэша
-        // Если модальное окно зависит от загруженных данных – обновить
-        this.updateModalWithData?.();
-        console.log('✅ TickerPanel полностью загружен (фон)');
-    }, 100); // задержка 100 мс даёт графику фору
-}
+    async init() {
+        await this.loadUserData();
+        this.setupFilters();
+        this.setupModal();
+        this.setupFlagContextMenu();
+        this.setupUIEventListeners();
+        this.setupClearAllButton();
+        this.setupHeaderSorting();
+        this.initializeDataParallel();
+        this.startFallbackPriceUpdates();
+        this.startCacheCleanup();
+    }
     
     // ========== МЕТОДЫ ЗАГРУЗКИ ДАННЫХ (были в TickerDataLoader) ==========
     
@@ -835,88 +825,82 @@ async fetchBatchSnapshots(symbols) {
         }
     }
     
-   handleTickerClick(e) {
-    const star = e.target.closest('.star');
-    if (star) {
-        e.preventDefault();
-        e.stopPropagation();
-        const symbol = star.dataset.symbol;
-        if (!symbol) return;
-        
-        const index = this.state.favorites.indexOf(symbol);
-        if (index === -1) {
-            this.state.favorites.push(symbol);
-            star.classList.add('favorite');
-        } else {
-            this.state.favorites.splice(index, 1);
-            star.classList.remove('favorite');
-        }
-        // Асинхронное сохранение
-        setTimeout(() => this.saveState(), 0);
-        this.filterCache = null;
-        return;
-    }
-
-    const flag = e.target.closest('.flag');
-    if (flag) {
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-    }
-
-    const tickerItem = e.target.closest('.ticker-item');
-    if (tickerItem && tickerItem.dataset.symbol) {
-        const symbol = tickerItem.dataset.symbol;
-        const exchange = tickerItem.dataset.exchange;
-        const marketType = tickerItem.dataset.marketType;
-        
-        // Если это уже текущий символ – ничего не делаем
-        if (this.state.currentSymbol === symbol &&
-            this.state.currentExchange === exchange &&
-            this.state.currentMarketType === marketType) {
+    handleTickerClick(e) {
+        const star = e.target.closest('.star');
+        if (star) {
+            e.preventDefault();
+            e.stopPropagation();
+            const symbol = star.dataset.symbol;
+            if (!symbol) return;
+            
+            const index = this.state.favorites.indexOf(symbol);
+            if (index === -1) {
+                this.state.favorites.push(symbol);
+                star.classList.add('favorite');
+            } else {
+                this.state.favorites.splice(index, 1);
+                star.classList.remove('favorite');
+            }
+            this.saveState();
+            this.filterCache = null;
             return;
         }
-        
-        // Отмена предыдущей загрузки (если была)
-        if (this._currentLoadAbortController) {
-            this._currentLoadAbortController.abort();
+    
+        const flag = e.target.closest('.flag');
+        if (flag) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
         }
-        this._currentLoadAbortController = new AbortController();
-        const signal = this._currentLoadAbortController.signal;
-        
-        // Обновляем состояние немедленно
-        this.state.currentSymbol = symbol;
-        this.state.currentExchange = exchange;
-        this.state.currentMarketType = marketType;
-        
-        // Фоновое сохранение состояния (не блокирует загрузку)
-        setTimeout(() => this.saveCurrentSymbol(symbol, exchange, marketType), 0);
-        
-        // Обновление активного элемента в списке (синхронно, но быстро)
-        const activeItems = document.querySelectorAll('.ticker-item.active');
-        for (const el of activeItems) {
-            el.classList.remove('active');
-        }
-        tickerItem.classList.add('active');
-        
-        // НЕМЕДЛЕННЫЙ вызов загрузки символа
-        if (this.coordinator) {
-            this.coordinator.loadSymbol(symbol, exchange, marketType, signal).catch(err => {
-                if (err.name === 'AbortError') {
-                    console.log('⏸️ Загрузка прервана');
-                }
+    
+        const tickerItem = e.target.closest('.ticker-item');
+        if (tickerItem && tickerItem.dataset.symbol) {
+            const symbol = tickerItem.dataset.symbol;
+            const exchange = tickerItem.dataset.exchange;
+            const marketType = tickerItem.dataset.marketType;
+            
+            if (this.state.currentSymbol === symbol &&
+                this.state.currentExchange === exchange &&
+                this.state.currentMarketType === marketType) {
+                return;
+            }
+            
+            if (this._currentLoadAbortController) {
+                this._currentLoadAbortController.abort();
+            }
+            
+            this._currentLoadAbortController = new AbortController();
+            const signal = this._currentLoadAbortController.signal;
+            
+            this.state.currentSymbol = symbol;
+            this.state.currentExchange = exchange;
+            this.state.currentMarketType = marketType;
+            
+            this.saveCurrentSymbol(symbol, exchange, marketType);
+            
+            document.querySelectorAll('.ticker-item.active').forEach(el => {
+                el.classList.remove('active');
             });
+            tickerItem.classList.add('active');
+            
+            if (this.coordinator) {
+                this.coordinator.loadSymbol(symbol, exchange, marketType, signal).catch(err => {
+                    if (err.name === 'AbortError') {
+                        console.log('⏸️ Загрузка прервана');
+                    }
+                });
+            }
+            
+            const pairDisplay = document.getElementById('pairDisplay');
+            if (pairDisplay) pairDisplay.textContent = symbol;
+            
+            const exchangeDisplay = document.getElementById('exchangeDisplay');
+            if (exchangeDisplay) exchangeDisplay.textContent = exchange === 'binance' ? 'Binance' : 'Bybit';
+            
+            const contractTypeDisplay = document.getElementById('contractTypeDisplay');
+            if (contractTypeDisplay) contractTypeDisplay.textContent = marketType === 'futures' ? 'PERP' : 'SPOT';
         }
-        
-        // Быстрое обновление заголовков (можно оставить синхронным)
-        const pairDisplay = document.getElementById('pairDisplay');
-        if (pairDisplay) pairDisplay.textContent = symbol;
-        const exchangeDisplay = document.getElementById('exchangeDisplay');
-        if (exchangeDisplay) exchangeDisplay.textContent = exchange === 'binance' ? 'Binance' : 'Bybit';
-        const contractTypeDisplay = document.getElementById('contractTypeDisplay');
-        if (contractTypeDisplay) contractTypeDisplay.textContent = marketType === 'futures' ? 'PERP' : 'SPOT';
     }
-}
     
     handleStarClick(star) {
         const symbol = star.dataset.symbol;
