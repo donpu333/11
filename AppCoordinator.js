@@ -90,7 +90,7 @@ console.log('📊 Загружаем с таймфреймом:', defaultInterva
     
     console.log('📊 Загружаю данные для:', defaultSymbol, defaultExchange, defaultMarketType);
     
-    const data = await this.chartManager.fetchKlines(defaultSymbol, defaultExchange, defaultMarketType, defaultInterval, 200);
+    const data = await this.chartManager.fetchKlines(defaultSymbol, defaultExchange, defaultMarketType, defaultInterval, 1000);
     if (data && data.length > 0) {
         this.chartManager.setDataQuick(
             data,
